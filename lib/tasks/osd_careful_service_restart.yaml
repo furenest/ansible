@@ -1,0 +1,20 @@
+---
+
+# This is a ansible task and must be included in a playbook.
+# Example:
+# tasks:
+#   - import_tasks: tasks/osd_careful_service_restart.yaml
+#     vars:
+#       osd_id: 123
+
+- name: Check for clean pgs
+  import_tasks: tasks/wait_for_clean_pgs.yaml
+
+- name: Pause 5 seconds for ceph-tranquillity
+  ansible.builtin.pause:
+    seconds: 5
+
+- name: "restart ceph-osd@{{ osd_id }}.service"
+  systemd:
+    state: restarted
+    name: "ceph-osd@{{ osd_id }}.service"

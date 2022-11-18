@@ -1,0 +1,47 @@
+---
+
+# This can be used to patch ceph on storage hosts running ceph-osd.services
+#
+#    0. checks for clean pgs
+#    1. yum upgrade ceph*
+#    2. checks for clean pgs
+#    3. reboot one ceph-osd services
+#    4. repeats 2 and 3 for all osd services, one at a time
+
+# tested in test01
+
+- hosts: "{{ myhosts }}"
+  serial: 1
+  gather_facts: false
+  tasks:
+    - name: first check for clean pgs
+      import_tasks: tasks/wait_for_clean_pgs.yaml
+
+    - name: Disable puppet
+      import_tasks: tasks/toggle_puppet.yaml
+      vars:
+        action: disable
+
+    - name: Set OSD noout flag
+      command: 'ceph osd set noout'
+      ignore_errors: yes
+
+    - name: Upgrade ceph packages
+      yum:
+        name: 'ceph*'
+        state: latest
+        update_cache: yes
+
+    - import_tasks: tasks/puppetrun.yaml
+      vars:
+        runmode: 'kickstart'
+
+    - name: Get OSDs on host
+      shell: "ceph-volume lvm list |grep ===== | cut -d' ' -f2 | cut -c 5-"
+      register: osds
+
+    - name: careful osd service restart loop
+      include_tasks: tasks/osd_careful_service_restart.yaml
+      loop: "{{ osds.stdout_lines }}"
+      loop_control:
+        loop_var: osd_id
